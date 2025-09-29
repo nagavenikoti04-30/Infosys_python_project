@@ -1,2 +1,2 @@
-# Infosys_python_project
-Webcam
+# Webcam
+To access Webcam
