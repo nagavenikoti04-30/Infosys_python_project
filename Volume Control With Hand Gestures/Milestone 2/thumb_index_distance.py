@@ -1,0 +1,120 @@
+"""
+Milestone 2 for the hand-gesture volume controller project:
+------------------------------------------------------------
+Features:
+✅ Detect one hand using MediaPipe Hands.
+✅ Draw hand skeleton (landmarks + connections).
+✅ Identify thumb tip (id=4) and index-finger tip (id=8).
+✅ Draw a line between those two fingertips.
+✅ Calculate the Euclidean distance between them.
+✅ Display the distance in pixels.
+
+Modules:
+- cv2, mediapipe, math, time
+
+How it works:
+-------------
+1. Capture webcam frames.
+2. Use MediaPipe Hands to detect one hand and get 21 landmarks.
+3. Convert normalized landmark coordinates (0-1) to pixel coordinates.
+4. Retrieve points 4 and 8 → thumb & index tips.
+5. Draw circles + a connecting line between them.
+6. Compute distance using math.hypot(x2 - x1, y2 - y1).
+7. Display distance on screen along with FPS.
+
+This milestone keeps all Milestone 1 behavior.
+"""
+
+import cv2
+import mediapipe as mp
+import time
+import math
+
+# -------------------------
+# Configurations
+# -------------------------
+WEBCAM_INDEX = 0
+DETECTION_CONFIDENCE = 0.7
+TRACKING_CONFIDENCE = 0.6
+
+mp_hands = mp.solutions.hands
+mp_drawing = mp.solutions.drawing_utils
+drawing_spec = mp_drawing.DrawingSpec(thickness=2, circle_radius=3)
+
+def run_hand_distance():
+    cap = cv2.VideoCapture(WEBCAM_INDEX)
+    if not cap.isOpened():
+        print("Error: Could not open webcam.")
+        return
+
+    prev_time = 0
+
+    with mp_hands.Hands(
+        static_image_mode=False,
+        max_num_hands=1,
+        min_detection_confidence=DETECTION_CONFIDENCE,
+        min_tracking_confidence=TRACKING_CONFIDENCE
+    ) as hands:
+
+        print("Starting webcam. Press 'q' to quit.")
+        while True:
+            ret, frame = cap.read()
+            if not ret:
+                print("Failed to grab frame.")
+                break
+
+            frame = cv2.flip(frame, 1)
+            rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            results = hands.process(rgb_frame)
+
+            h, w, _ = frame.shape
+            if results.multi_hand_landmarks:
+                for hand_landmarks in results.multi_hand_landmarks:
+                    # Draw skeleton
+                    mp_drawing.draw_landmarks(
+                        frame, hand_landmarks, mp_hands.HAND_CONNECTIONS,
+                        drawing_spec, drawing_spec
+                    )
+
+                    # Get landmark positions for thumb tip (4) & index tip (8)
+                    thumb_tip = hand_landmarks.landmark[4]
+                    index_tip = hand_landmarks.landmark[8]
+
+                    x1, y1 = int(thumb_tip.x * w), int(thumb_tip.y * h)
+                    x2, y2 = int(index_tip.x * w), int(index_tip.y * h)
+
+                    # Draw the points
+                    cv2.circle(frame, (x1, y1), 10, (255, 0, 255), cv2.FILLED)
+                    cv2.circle(frame, (x2, y2), 10, (255, 0, 255), cv2.FILLED)
+
+                    # Draw line between them
+                    cv2.line(frame, (x1, y1), (x2, y2), (255, 0, 255), 3)
+
+                    # Calculate distance
+                    distance = math.hypot(x2 - x1, y2 - y1)
+
+                    # Display distance value
+                    cv2.putText(frame, f'Distance: {int(distance)} px',
+                                (10, 60), cv2.FONT_HERSHEY_SIMPLEX,
+                                0.8, (0, 255, 0), 2, cv2.LINE_AA)
+
+            # FPS calculation
+            curr_time = time.time()
+            fps = 1 / (curr_time - prev_time) if prev_time else 0.0
+            prev_time = curr_time
+            cv2.putText(frame, f'FPS: {int(fps)}', (10, 30),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2, cv2.LINE_AA)
+
+            cv2.putText(frame, "Press 'q' to quit", (10, frame.shape[0] - 10),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, (200, 200, 200), 1, cv2.LINE_AA)
+
+            cv2.imshow('Milestone 2 - Thumb-Index Distance', frame)
+            if cv2.waitKey(1) & 0xFF == ord('q'):
+                break
+
+    cap.release()
+    cv2.destroyAllWindows()
+
+
+if __name__ == "__main__":
+    run_hand_distance()
